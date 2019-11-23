@@ -1,0 +1,49 @@
+version: 2
+
+workflows:
+  version: 2
+  primary:
+    jobs:
+      - build:
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+
+defaults: &defaults
+  docker:
+    - image: docker.palantir.build/circle2-build-images/ubuntu-jdk-npm:0.29.0
+  environment:
+    TERM: "dumb"
+    NVM_NODEJS_ORG_MIRROR: "https://artifactory.palantir.build/artifactory/external-dist-nodejs"
+
+jobs:
+  build:
+    <<: *defaults
+    steps:
+      # Checkout code
+      - checkout
+
+      - run:
+          command: yarn install
+          no_output_timeout: 10m
+
+      - run:
+          command: yarn build
+          no_output_timeout: 10m
+
+      - run:
+          command: yarn test
+          no_output_timeout: 10m
+
+      # get publish permissions set up
+      - run:
+          command: |
+            NPM_API_PATH="artifactory.palantir.build/artifactory/api/npm/all-npm"
+            NPM_SCOPE="tron"
+            curl -sS -u${ARTIFACTORY_USERNAME}:${ARTIFACTORY_PASSWORD} "https://$NPM_API_PATH/auth/$NPM_SCOPE" >> .npmrc
+            chmod 0600 .npmrc
+      - run:
+          command: npm publish --registry=https://artifactory.palantir.build/artifactory/api/npm/all-npm/
+          no_output_timeout: 30m
